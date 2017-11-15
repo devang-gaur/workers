@@ -1,5 +1,16 @@
-***DEMO APP***
+#Workers
 
+Yet another worker pool library.
+However, this library implements a singleton pattern. Only a single worker pool object can reside in the heap.
+
+Error handling mechanism is BYOC (Bring Your Own Channel). The goroutine leak for the error channel is handled by the library.
+The client gets the liberty to do whatever else they want with it.
+
+The user gets to tune the number of workers and the buffer size of task queue.
+
+Raising constructive issues and PRs would be appreciated :)
+
+#####DEMO APP
 
 ```
 package main
