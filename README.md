@@ -6,10 +6,10 @@ package main
 
 import (
 	"fmt"
+	"hdd/scout/workers"
 	"time"
 
-	"github.com/pkg/errors"
-	"github.com/dev-gaur/workers"
+	"errors"
 )
 
 var newtask = workers.NewTask
@@ -17,19 +17,16 @@ var newtask = workers.NewTask
 // size of the worker pool
 var poolSize int
 
-// size of the task queue
-var queueSize int
-
 func init() {
 	poolSize = 10
-	queueSize = 2
 }
 
 func main() {
 	errChan := make(chan error, 10)
 	wrap := make(chan struct{})
+	var pooldone = make(chan struct{})
 
-	pool := workers.GetPool(poolSize, errChan, wrap, queueSize)
+	pool := workers.GetPool(poolSize, errChan, wrap, pooldone, 90)
 	done := make(chan bool)
 
 	go func() {
@@ -44,9 +41,8 @@ func main() {
 	}()
 
 	go func() {
-		var err error
-		for err = range errChan {
-			fmt.Println("Error : ", err)
+		for err := range errChan {
+			fmt.Println("Error reported :", err)
 		}
 	}()
 
@@ -61,25 +57,6 @@ func main() {
 		}),
 		newtask(func() error {
 			fmt.Println("Three")
-			return nil
-		}),
-	}
-
-	pool.AssignTasks(tasks)
-
-	time.Sleep(time.Second * 2)
-
-	tasks = []*workers.Task{
-		newtask(func() error {
-			fmt.Println("Seven")
-			return nil
-		}),
-		newtask(func() error {
-			fmt.Println("Eight")
-			return errors.New("CURSE OF THE EIGHTH")
-		}),
-		newtask(func() error {
-			fmt.Println("Nine")
 			return nil
 		}),
 	}
@@ -105,7 +82,28 @@ func main() {
 
 	pool.AssignTasks(tasks)
 
+	time.Sleep(time.Second * 2)
+
+	tasks = []*workers.Task{
+		newtask(func() error {
+			fmt.Println("Seven")
+			return nil
+		}),
+		newtask(func() error {
+			fmt.Println("Eight")
+			return errors.New("CURSE OF THE EIGHTH")
+		}),
+		newtask(func() error {
+			fmt.Println("Nine")
+			return nil
+		}),
+	}
+
+	pool.AssignTasks(tasks)
+
 	close(wrap)
 	<-done
+	<-pooldone
+	//ENTER 0 into console STDIN to exit
 }
 ```

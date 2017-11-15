@@ -14,15 +14,14 @@ type pool struct {
 	taskQueue   chan *Task
 	taskChan    chan *Task
 	concurrency int // Number of workers
-	errChan     chan error
+	errChan     chan<- error
 }
 
 // Instance : pointer to the singleton instance of the worker pool
 var instance *pool
 
 // GetPool initializes a new pool with the given tasks and at the given concurrency.
-func GetPool(n int, errorChan chan error, wrap <-chan struct{}, queueSize int) *pool {
-	fmt.Println("Buffer size : ", queueSize)
+func GetPool(n int, errorChan chan<- error, wrap <-chan struct{}, done chan struct{}, queueSize int) *pool {
 
 	once.Do(func() {
 		instance = &pool{
@@ -32,12 +31,18 @@ func GetPool(n int, errorChan chan error, wrap <-chan struct{}, queueSize int) *
 			errChan:     errorChan,
 		}
 
+		var workersignals []chan struct{}
+
 		for i := 0; i < instance.concurrency; i++ {
-			fmt.Println("Launched a worker")
-			go instance.work()
+			workersignals = append(workersignals, make(chan struct{}))
 		}
 
-		go instance.run(wrap)
+		for i := 0; i < instance.concurrency; i++ {
+			fmt.Println("Launched a worker")
+			go instance.work(workersignals[i])
+		}
+
+		go instance.run(wrap, done, workersignals)
 	})
 
 	return instance
@@ -63,22 +68,23 @@ func (p *pool) AssignTask(task *Task) *pool {
 	return p
 }
 
-func (p *pool) wrap(done <-chan struct{}) {
+func (p *pool) wrap(done <-chan struct{}, signal chan<- struct{}, workersignals []chan struct{}) {
 
-	for {
-		<-done
-		fmt.Println("WRAP SIGNAL RECIEVED")
-		close(p.errChan)
-		close(p.taskChan)
-		break
+	<-done
+	close(p.taskChan)
+
+	for _, workersignal := range workersignals {
+		<-workersignal
 	}
 
+	close(p.errChan)
+	close(signal)
 }
 
 // run, runs all work within the pool and blocks until it's finished.
-func (p *pool) run(wrap <-chan struct{}) {
+func (p *pool) run(wrap <-chan struct{}, done chan<- struct{}, workersignals []chan struct{}) {
 	shutdown := make(chan struct{})
-	go p.wrap(shutdown)
+	go p.wrap(shutdown, done, workersignals)
 
 L:
 	for {
@@ -101,18 +107,19 @@ L:
 }
 
 // The work loop for any single goroutine.
-func (p *pool) work() {
+func (p *pool) work(done chan<- struct{}) {
 	for task := range p.taskChan {
 		task.run()
 	}
 
 	fmt.Println("Worker Shutting up...")
+	close(done)
 }
 
 // Task encapsulates a work item that should go in a work pool.
 type Task struct {
 	// Err holds an error that occurred during a task. Its result is only
-	// meaningful after Run has been called for the pool that holds it.
+	// meaningful after Run has been called for the task that holds it.
 	err error
 
 	f func() error
