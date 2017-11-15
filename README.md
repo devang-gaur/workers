@@ -6,7 +6,7 @@ package main
 
 import (
 	"fmt"
-	"hdd/scout/workers"
+	"github.com/dev-gaur/workers"
 	"time"
 
 	"errors"
