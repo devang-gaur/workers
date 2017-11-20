@@ -17,29 +17,42 @@ package main
 
 import (
 	"fmt"
-	"github.com/dev-gaur/workers"
 	"time"
 
 	"errors"
+
+	"github.com/dev-gaur/workers"
 )
 
 var newtask = workers.NewTask
 
-// size of the worker pool
-var poolSize int
+var poolSize, queueSize int
 
 func init() {
-	poolSize = 10
+	poolSize = 4
+	queueSize = 2
 }
 
 func main() {
 	errChan := make(chan error, 10)
 	wrap := make(chan struct{})
-	var pooldone = make(chan struct{})
+	pooldone := make(chan struct{})
 
-	pool := workers.GetPool(poolSize, errChan, wrap, pooldone, 90)
+	fmt.Println("ENTER 0 into console STDIN to exit")
+
+	/*
+	 * Invoking and fetching a refernce to the workerpool instance
+	 * poolSize : determines the number of workers you want the pool to have
+	 * errChan : the channel on which the worker pool broadcasts error caused by any task. To see usage, check the goroutine on line 51
+	 * wrap : channel used by the client to signal pool to shutdown
+	 * pooldone : channel used by the worker pool to confirm shut down after recieving wrap signal
+	 * queueSize : length of the task queue
+	 */
+	pool := workers.GetPool(poolSize, errChan, wrap, pooldone, queueSize)
+
 	done := make(chan bool)
 
+	// Goroutine to listen to the STDIN. The program shuts down when a '0' is read from STDIN
 	go func() {
 		for {
 			var c int
@@ -51,12 +64,14 @@ func main() {
 		}
 	}()
 
+	// goroutine to listen on the error chan
 	go func() {
 		for err := range errChan {
 			fmt.Println("Error reported :", err)
 		}
 	}()
 
+	//Adding 3 tasks to the worker pool
 	tasks := []*workers.Task{
 		newtask(func() error {
 			fmt.Println("One")
@@ -76,6 +91,7 @@ func main() {
 
 	time.Sleep(time.Second * 2)
 
+	//Adding 3 tasks to the worker pool
 	tasks = []*workers.Task{
 		newtask(func() error {
 			fmt.Println("Four")
@@ -95,6 +111,7 @@ func main() {
 
 	time.Sleep(time.Second * 2)
 
+	//Adding 3 tasks to the worker pool. One of them has error.
 	tasks = []*workers.Task{
 		newtask(func() error {
 			fmt.Println("Seven")
@@ -112,9 +129,25 @@ func main() {
 
 	pool.AssignTasks(tasks)
 
-	close(wrap)
+	task := newtask(func() error {
+		return randomfunc("gopher inside!")
+	})
+
+	// Adding the last task.
+	pool.AssignTask(task)
+
+	// This blocks till the user signals to quit by inputting '0' to STDIN
 	<-done
+	// signalling the worker pool to shutdown
+	close(wrap)
+	// This will block tills the shutdown completes and worker pool signals back
 	<-pooldone
-	//ENTER 0 into console STDIN to exit
+
+}
+
+func randomfunc(str string) error {
+	fmt.Println("random function invoked with argument :", str)
+
+	return errors.New("Error from random function")
 }
 ```
