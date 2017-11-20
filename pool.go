@@ -23,6 +23,10 @@ var instance *pool
 // GetPool initializes a new pool with the given tasks and at the given concurrency.
 func GetPool(n int, errorChan chan<- error, wrap <-chan struct{}, done chan struct{}, queueSize int) *pool {
 
+	if instance != nil {
+		fmt.Println("Worker pool has already been invoked. Can't change the singleton Instance")
+	}
+
 	once.Do(func() {
 		instance = &pool{
 			taskQueue:   make(chan *Task, queueSize),
