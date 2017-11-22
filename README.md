@@ -12,7 +12,7 @@ Raising constructive issues and PRs would be appreciated :)
 
 #### DEMO APP
 
-```
+```golang
 package main
 
 import (
