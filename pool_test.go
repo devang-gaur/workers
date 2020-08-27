@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	assert "github.com/stretchr/testify/require"
+	assert "github.com/stretchr/testify/assert"
 )
 
 var errs []error
